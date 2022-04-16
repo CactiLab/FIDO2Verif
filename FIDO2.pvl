@@ -1,0 +1,870 @@
+(**************************************************************************************)
+(*                  	Type declaration of fields in Message         		    	  *)
+(**************************************************************************************)
+type msg.
+type UserHandle.
+type PassWord.
+type RpID.
+type Challenge.
+type AAGUID.
+type CNTR.
+type Transaction.
+type TrType.
+type AuType.
+type CTAPType.
+
+
+(*******************************************************************)
+(*              Symmetric Encryption and Decryption                *)
+(*******************************************************************)
+type key.
+
+fun senc(bitstring,key):bitstring.
+fun sdec(bitstring,key):bitstring
+reduc forall m:bitstring, k:key; sdec(senc(m,k),k) = m.
+
+
+(*******************************************************************)
+(*                    Hash Functions used in                       *)
+(*1.hash:   compute hash value of PIN                              *)
+(*2.hash_r: compute hash value of RpID                             *)
+(*3.hash_s: compute hash value of sharedSecret                     *)
+(*4.hash_t: compute hash value of Transaction Data                 *)
+(*5.HMAC:   compute xPinAuth in setPIN                             *)
+(*6.HMAC1:  compute xPinAuth in changePIN                          *)
+(*6.HMAC1:  compute xPinAuth in Registration and Authentication    *)
+(*******************************************************************)
+fun hash(bitstring):bitstring.
+fun hash_r(RpID):bitstring.
+fun hash_s(bitstring):key.
+fun hash_t(Transaction):bitstring.
+fun HMAC(key,bitstring):bitstring.
+fun HMAC1(key,bitstring,bitstring):bitstring.
+fun HMAC2(bitstring,bitstring):bitstring.
+
+
+(*******************************************************************)
+(*                Public Key Signature Functions                   *)
+(*******************************************************************)
+type spkey.
+type sskey.
+const OK:bitstring.
+
+fun spk(sskey):spkey.
+fun sign(bitstring,sskey): bitstring.
+fun checksign(bitstring,bitstring,spkey):bitstring
+reduc forall m: bitstring, ssk: sskey; checksign(sign(m,ssk),m,spk(ssk)) = OK.
+
+
+(*******************************************************************)
+(*           ECC Public Key Functions for Key Agreement            *)
+(*******************************************************************)
+type pkey.
+type skey.
+type Gen.
+
+fun pk(skey,Gen):pkey.
+fun associate(skey,pkey):bitstring.
+equation forall a:skey, b:skey, G:Gen; associate(a,pk(b,G)) = associate(b,pk(a,G)).
+
+
+(*******************************************************************)
+(*                   Get TLSBinding from Channel                   *)
+(*******************************************************************)
+fun GetTLSBinding(channel):bitstring.
+
+
+(*******************************************************************)
+(*                ClientData Construction Function                 *)
+(*******************************************************************)
+fun CD_Cons(Challenge,RpID,bitstring):bitstring.
+
+
+(*******************************************************************)
+(*                  Increasing Counter Value                       *)
+(*******************************************************************)
+fun Incr(CNTR):CNTR.
+fun Redu(CNTR):CNTR
+reduc forall cntr:CNTR; Redu(Incr(cntr)) = cntr.
+
+
+(**********************************************************************)
+(*                    Message Format Functions in CTAP                *)
+(*1.CTAP1: FC send (getKeyAgreement) to RP                            *)
+(*2.CTAP2: RP send (aG) to FC                                         *)
+(*3.CTAP3: FC send (setPIN,bG,newPinEnc,PinAuth) to FA                *)
+(*4.CTAP4: FA send (CTAP2-OK) to FC                                   *)
+(*5.CTAP5: FC send (changePIN,bG,PinHashEnc,newPinEnc,PinAuth) to FA  *)
+(*6.CTAP6: FA send (CTAP2-OK) to FC                                   *)
+(*7.CTAP7: FC send (getPinToken, bG, PinHashEnc) to FA                *)
+(*8.CTAP8: FA send (PinTokenEnc) to FC                                *)
+(**********************************************************************)
+fun CTAP1(bitstring):msg[data].
+fun CTAP2(pkey):msg[data].
+
+fun CTAP3(pkey,bitstring,bitstring):msg[data].
+fun CTAP4(bitstring):msg[data].
+
+fun CTAP5(pkey,bitstring,bitstring,bitstring):msg[data].
+fun CTAP6(bitstring):msg[data].
+
+(*Authenticator - Client: Get pinToken*)
+fun CTAP7(pkey,bitstring):msg[data].
+fun CTAP8(bitstring):msg[data]. 
+
+
+
+(*******************************************************************************)
+(*                      Message Format Functions in Registration               *)
+(*1.Reg1: FC send (UserHandle, PassWord) to RP                                 *)
+(*2.Reg2: RP send (UserHandle,RpID,Challenge) to FC                            *)
+(*3.Reg3: FC send (UserHandle,RpID,FCHash,PinAuth) to FA                       *)
+(*4.Reg4: FA send (RHash,CNTR,AAGUID,CreID,pkCre,Signature,pkAT) to FC         *)
+(*5.Reg5: FC send (RHash,CNTR,AAGUID,CreID,pkCre,Signature,pkAT,FCData) to RP  *)
+(*******************************************************************************)
+(*Messages in Registration process*)
+fun Reg1(UserHandle, PassWord):msg[data].
+fun Reg2(UserHandle,RpID,Challenge):msg[data].
+fun Reg3(UserHandle,RpID,bitstring,bitstring):msg[data]. (*with CTAP*)
+fun Reg31(UserHandle,RpID,bitstring):msg[data].          (*no CTAP*)
+fun Reg4(bitstring,CNTR,AAGUID,bitstring,spkey,bitstring,spkey):msg[data].
+fun Reg5(bitstring,CNTR,AAGUID,bitstring,spkey,bitstring,spkey,bitstring):msg[data].
+
+
+
+(***************************************************************************************************)
+(*                             Message Format Functions in Authentication                          *)
+(*1.Auth1: RP sends (RpID,Challenge,CreID) to FC                                                   *)
+(*2.Auth2: FC sends (CreID,RpID,FCHash,PinAuth) to FA                                              *)
+(*3.Auth3: FA sends (RHash,CNTR,AAGUID,CreID,pkCre,Signature,UserHandle) to FC                     *)
+(*4.Auth4: FC sends (RHash,CNTR,AAGUID,CreID,pkCre,Signature,UserHandle,FCData) to RP              *)
+(***************************************************************************************************)
+(*1-1.Trs1: RP sends (RpID,Challenge,CreID,Transaction) to FC                                      *)
+(*2-1.Trs2: FC sends (CreID,RpID,FCHash,PinAuth,Transaction) to FA                                 *)
+(*3-1.Trs3: FA sends (RHash,CNTR,AAGUID,CreID,pkCre,Signature,UserHandle,Transaction) to FC        *)
+(*4-1.Trs4: FC sends (RHash,CNTR,AAGUID,CreID,pkCre,Signature,UserHandle,FCData,Transaction) to RP *)
+(***************************************************************************************************)
+(*1-2.Trs1: RP sends (RpID,Challenge,CreID,Transaction) to FC                                      *)
+(*2-2.Trs2: FC sends (CreID,RpID,FCHash,PinAuth,Transaction) to FA                                 *)
+(*3-2.Trs3: FA sends (RHash,CNTR,AAGUID,CreID,pkCre,Signature,UserHandle,THash) to FC              *)
+(*4-2.Trs4: FC sends (RHash,CNTR,AAGUID,CreID,pkCre,Signature,UserHandle,FCData,THash) to RP       *)
+(***************************************************************************************************)
+fun Auth1(RpID,Challenge,bitstring):msg[data].
+fun Auth2(bitstring,RpID,bitstring,bitstring):msg[data].
+fun Auth21(bitstring,RpID,bitstring):msg[data].
+fun Auth3(bitstring,CNTR,AAGUID,bitstring,spkey,bitstring,UserHandle):msg[data].
+fun Auth4(bitstring,CNTR,AAGUID,bitstring,spkey,bitstring,UserHandle,bitstring):msg[data].
+
+fun Trs1(RpID,Challenge,bitstring,Transaction):msg[data].
+fun Trs2(bitstring,RpID,bitstring,bitstring,Transaction):msg[data].
+fun Trs21(bitstring,RpID,bitstring,Transaction):msg[data].
+fun Trs3(bitstring,CNTR,AAGUID,bitstring,spkey,bitstring,UserHandle,Transaction):msg[data].
+fun Trs4(bitstring,CNTR,AAGUID,bitstring,spkey,bitstring,UserHandle,bitstring,Transaction):msg[data].
+
+fun Trg1(RpID,Challenge,bitstring,Transaction):msg[data].
+fun Trg2(bitstring,RpID,bitstring,bitstring,Transaction):msg[data].
+fun Trg21(bitstring,RpID,bitstring,Transaction):msg[data].
+fun Trg3(bitstring,CNTR,AAGUID,bitstring,spkey,bitstring,UserHandle,bitstring):msg[data].
+fun Trg4(bitstring,CNTR,AAGUID,bitstring,spkey,bitstring,UserHandle,bitstring,bitstring):msg[data].
+
+
+(*******************************************************************)
+(*                      Channel Declaration                        *)
+(*******************************************************************)
+free cP : channel. 			  (* Public Channel *)
+free CR: channel [private].   (* Secure Channel between FC and RP *)
+free CA: channel [private].   (* Secure Channel between FC and FA *)
+
+
+(*****************************************************************************************)
+(*                                  Table Declaration                                    *)
+(*1.Server_Reg_Record:    registration data stored on server-side                        *)
+(*2.Client_Token:         the PinToken stored on client                                  *)
+(*3.Authnr_Server_Record: registration data stored on server-side storage authenticators *)
+(*4.Authnr_Client_Record: registration data stored on server-side storage authenticators *)
+(*****************************************************************************************)
+table Server_Reg_Record(UserHandle,AAGUID,bitstring,spkey,CNTR).     (* UHandle, AAGUID, CreID, pkCre, CNTRs *)
+table Client_Token (bitstring).                                      (* the PinToken stored on client *)
+table Authnr_Token (bitstring).                                      (* the PinToken stored on authenticator *)
+table Authnr_Server_Record(UserHandle,RpID,CNTR).                    (* UHandle, Rpid, CNTRA *)
+table Authnr_Client_Record(bitstring,sskey,RpID,UserHandle,CNTR).    (* CreID, skCre, RpID, Uhandle, CNTRA *)
+
+(*******************************************************************)
+(*                      Constant Declaration                       *)
+(*******************************************************************)
+const noCTAP:CTAPType.    (*CTAP - Without CTAP*)
+const setPIN:CTAPType.    (*CTAP - Set PIN*)
+const chgPIN:CTAPType.    (*CTAP - Change PIN*)
+const getToken:CTAPType.  (*CTAP - Get PinToken*)
+
+const client:AuType.      (*Authenticators supporting client-side storage*)
+const server:AuType.      (*Authenticators supporting server-side storage*)
+
+const empty:TrType.       (*Pure authentication*)
+const simple:TrType.      (*Simple Transaction Authorization Mode*)
+const generic:TrType.     (*Generic Transaction Authorization Mode*)
+
+
+(*******************************************************************)
+(*                Events for Authentication Query                  *)
+(*******************************************************************)
+(* Events in Registration*)
+event Client_Init_Reg(UserHandle,RpID).
+event Authnr_Finish_Reg(UserHandle,RpID,AAGUID,bitstring,spkey).
+event Server_Finish_Reg(UserHandle,RpID,AAGUID,bitstring,spkey).
+
+(* Events in Authentication *)
+event Client_Init_Auth(UserHandle,RpID).
+event Authnr_Finish_Auth(UserHandle,RpID,AAGUID,bitstring).
+event Server_Finish_Auth(UserHandle,RpID,AAGUID,bitstring).
+
+(* Events in Transaction Confirmation *)
+event Authnr_Finish_Tr(Transaction).
+event Server_Finish_Tr(Transaction).
+event Client_Init_Tr(Transaction).
+
+
+(**********************************************************************)
+(*             CTAP-Authnr: Authenticator CTAP Process                *)
+(**********************************************************************)
+let CTAP_Authnr(G:Gen,PIN:bitstring,CA:channel,ctapype:CTAPType) =
+(
+	new PinToken:bitstring;
+	insert Authnr_Token(PinToken);
+	new a:skey;	
+	let aG = pk(a,G) in
+	let xPinHash = hash(PIN) in
+	(*Getting sharedSecret from Authenticator*)
+	in(CA,msg1:msg);
+	let CTAP1(getKeyAgreement) = msg1 in
+	if getKeyAgreement = OK then
+	out(CA, CTAP2(aG));
+	if ctapype = setPIN then
+	(
+		in(CA,msg3:msg);
+		let CTAP3(bG,newPinEnc,PinAuth) = msg3 in
+		let SP = associate(a,bG) in
+		let SS = hash_s(SP) in
+		let xPinAuth = HMAC(SS, newPinEnc) in
+		if xPinAuth = PinAuth then
+		(
+			let newPin = sdec(newPinEnc,SS) in
+			let newPinHash = hash(newPin) in
+			out(CA,CTAP4(OK));
+			in(CA,msg7:msg);
+			let CTAP7(b1G,PinHashEnc) = msg7 in
+			let SP1 = associate(a,b1G) in
+			let SS1 = hash_s(SP1) in
+			let PinHash1 = sdec(PinHashEnc,SS1) in
+			if PinHash1 = newPinHash then
+			(
+				let PinTokenEnc = senc(PinToken,SS1) in
+				out (CA,CTAP8(PinTokenEnc))
+			)
+		)
+	)
+	else if ctapype = chgPIN then
+	(
+		in(CA,msg5:msg);
+		let CTAP5(bG,PinHashEnc,newPinEnc,PinAuth) = msg5 in
+		let SP = associate(a,bG) in
+		let SS = hash_s(SP) in
+		let xPinAuth = HMAC1(SS, newPinEnc,PinHashEnc) in
+		if xPinAuth = PinAuth then
+		(
+			let PinHash = sdec(PinHashEnc,SS) in
+			if xPinHash = PinHash then
+			(
+				let newPin = sdec(newPinEnc,SS) in
+				let newPinHash = hash(newPin) in
+				out(CA,CTAP6(OK));
+				in(CA,msg7:msg);
+				let CTAP7(b1G,PinHashEnc1) = msg7 in
+				let SP1 = associate(a,b1G) in
+				let SS1 = hash_s(SP1) in
+				let PinHash1 = sdec(PinHashEnc1,SS1) in
+				if PinHash1 = newPinHash then
+				(
+					let PinTokenEnc = senc(PinToken,SS1) in
+					out (CA,CTAP8(PinTokenEnc))
+				)
+			)
+		)
+	)
+	else
+	(
+		in(CA,msg7:msg);
+		let CTAP7(bG,PinHashEnc) = msg7 in
+		let SP = associate(a,bG) in
+		let SS = hash_s(SP) in
+		let PinHash = sdec(PinHashEnc,SS) in
+		if xPinHash = PinHash then
+		(
+			let PinTokenEnc = senc(PinToken,SS) in
+			out (CA,CTAP8(PinTokenEnc))
+		)
+	)
+).
+
+
+(**********************************************************************)
+(*                 CTAP-Client: Client CTAP Process                   *)
+(**********************************************************************)
+let CTAP_Client(G:Gen, PIN:bitstring, CA:channel, ctapype:CTAPType) =
+(
+	new b:skey;          (*key exchange 1st time*)
+	new b1:skey;         (*key exchange 2nd time, PinToken*)
+	new newPin:bitstring;
+	let bG = pk(b,G) in
+	let b1G = pk(b1,G) in
+	let PinHash = hash(PIN) in
+	out(CA,CTAP1(OK));
+	in(CA,msg2:msg);
+	let CTAP2(aG) = msg2 in
+	let SP = associate(b,aG) in
+	let SS = hash_s(SP) in
+	let SP1 = associate(b1,aG) in
+	let SS1 = hash_s(SP1) in
+	if ctapype = setPIN then
+	(
+		let newPinEnc = senc(newPin,SS) in
+		let PinAuth = HMAC(SS, newPinEnc) in
+		out(CA,CTAP3(bG,newPinEnc,PinAuth));
+		in(CA,msg4:msg);
+		let CTAP4(CTAP2_OK) = msg4 in
+		if CTAP2_OK = OK then
+		(
+			let PinHashEnc = senc(PinHash,SS) in
+			out(CA,CTAP7(b1G,PinHashEnc));
+			in(CA,msg8:msg);
+			let CTAP8(PinTokenEnc) = msg8 in
+			let PinToken = sdec(PinTokenEnc,SS1) in
+			insert Client_Token(PinToken)
+		)
+	)
+	else if ctapype = chgPIN then
+	(
+		let PinHashEnc = senc(PinHash,SS) in
+		let newPinEnc = senc(newPin,SS) in
+		let PinAuth = HMAC1(SS, newPinEnc,PinHashEnc) in
+		out(CA,CTAP5(bG,PinHashEnc,newPinEnc,PinAuth));
+		in(CA,msg6:msg);
+		let CTAP6(CTAP2_OK) = msg6 in
+		if CTAP2_OK = OK then
+		(
+			let PinHashEnc1 = senc(PinHash,SS) in
+			out(CA,CTAP7(b1G,PinHashEnc1));
+			in(CA,msg8:msg);
+			let CTAP8(PinTokenEnc) = msg8 in
+			let PinToken = sdec(PinTokenEnc,SS1) in
+			insert Client_Token(PinToken)
+		)
+	)
+	else
+	(
+		let PinHashEnc = senc(PinHash,SS) in
+		out(CA,CTAP7(bG,PinHashEnc));
+		in(CA,msg8:msg);
+		let CTAP8(PinTokenEnc) = msg8 in
+		let PinToken = sdec(PinTokenEnc,SS) in
+		insert Client_Token(PinToken)
+	)	
+).
+
+
+(*********************************************************************)
+(*                FIDO2 Server Proces in Registration                *)
+(*********************************************************************)
+let Reg_Server(rpid:RpID,uHandle:UserHandle,pWord:PassWord,CR:channel) =
+(
+	new challenge:Challenge;
+	in(CR,msgReg1:msg);
+	let Reg1(uhandle, pword) = msgReg1 in
+	if uHandle = uhandle && pWord = pword then
+	(
+		(*finished traditional login process and start the protocol*)
+
+		let tbinding = GetTLSBinding(CR) in
+		out(CR,Reg2(uHandle,rpid,challenge));
+		in(CR,msgReg5:msg);
+		let Reg5(RHash,cntr,aaguid,creid,pkau,s,pkat,ClientData) = msgReg5 in
+		let xClientData = CD_Cons(challenge, rpid, tbinding) in (*Constructing expected ClientData with previous data*)
+		let xRHash = hash_r(rpid) in
+		let xCHash = hash(ClientData) in
+		if ClientData = xClientData && RHash = xRHash
+		&& checksign(s,(RHash,cntr,aaguid,creid,pkau,xCHash),pkat) = OK then
+		(
+			insert Server_Reg_Record(uHandle,aaguid,creid,pkau,cntr);
+			event Server_Finish_Reg(uHandle,rpid,aaguid,creid,pkau)      (*Server Finished Registration*)
+		)
+	)
+).
+
+(*********************************************************************)
+(*                FIDO2 Server Proces in Authenticatio               *)
+(*********************************************************************)
+let Auth_Server(rpid:RpID,uHandle:UserHandle,xTr:Transaction,CR:channel,tr_type:TrType) =
+(
+	new challenge:Challenge;
+    let tbinding = GetTLSBinding(CR) in
+    get Server_Reg_Record(=uHandle,xaaguid,xcreid,xpkau,xcntr) in
+    (*pure authentication without transaction*)
+    if tr_type = empty then
+    (
+        out(CR,Auth1(rpid,challenge,xcreid));
+	    in(CR,msgAuth4:msg);
+	    let Auth4(RHash,cntr,aaguid,creid,pkau,s,xuhandle,ClientData) = msgAuth4 in
+	    let xClientData = CD_Cons(challenge, rpid, tbinding) in
+	    let xRHash = hash_r(rpid) in
+	    let xCHash = hash(ClientData) in
+	    if ClientData = xClientData && RHash = xRHash && Incr(xcntr)=cntr && checksign(s,(RHash,cntr,aaguid,creid,pkau,xCHash),xpkau) = OK then
+	    (
+		    (* update the CNTR failed because the unchangable table record*)
+		    event Server_Finish_Auth(uHandle,rpid,aaguid,xcreid)
+	    )
+    )
+	(*Simple Transaction Authorization Mode*)
+    else if tr_type = simple then
+    (
+        out(CR,Trs1(rpid, challenge, xcreid, xTr));
+	    in(CR,msgTrs4:msg);
+	    let Trs4(RHash,cntr,aaguid,creid,pkau,s,xuhandle,ClientData,Tr) = msgTrs4 in
+	    let xClientData = CD_Cons(challenge, rpid, tbinding) in
+	    let xRHash = hash_r(rpid) in
+	    let xCHash = hash(ClientData) in
+	    if ClientData = xClientData && RHash = xRHash && Incr(xcntr)=cntr && Tr=xTr && 
+			checksign(s,(xRHash,cntr,aaguid,creid,pkau,xCHash,xTr),xpkau) = OK then
+	    (
+		    (* update the CNTR failed because the unchangable table record*)
+		    event Server_Finish_Auth(uHandle,rpid,aaguid,xcreid);
+			event Server_Finish_Tr(xTr)
+	    )
+    )
+	(*Generic Transaction Authorization Mode*)
+    else
+    (
+        out(CR,Trg1(rpid,challenge,xcreid,xTr));
+	    in(CR,msgTrg4:msg);
+	    let Trg4(RHash,cntr,aaguid,creid,pkau,s,xuhandle,ClientData,thash) = msgTrg4 in
+	    let xClientData = CD_Cons(challenge, rpid, tbinding) in
+	    let xRHash = hash_r(rpid) in
+	    let xCHash = hash(ClientData) in
+		let xthash = hash_t(xTr) in
+	    if ClientData = xClientData && RHash = xRHash && Incr(xcntr)=cntr && thash=xthash && 
+			checksign(s,(RHash,cntr,aaguid,creid,pkau,xCHash),xpkau) = OK then
+	    (
+		    (* update the CNTR failed because the unchangable table record*)
+		    event Server_Finish_Auth(uHandle,rpid,aaguid,xcreid);
+			event Server_Finish_Tr(xTr)
+	    )
+    )
+).
+
+
+(*********************************************************************)
+(*                FIDO2 Client Proces in Registration                *)
+(*********************************************************************)
+let Reg_Client(uHandle:UserHandle,pWord:PassWord,CR:channel,CA:channel,c_type:CTAPType) =
+(
+	out(CR,Reg1(uHandle, pWord));
+	in(CR,msgReg2:msg);
+	let tbinding = GetTLSBinding(CR) in
+	let Reg2(uhandle,rpid,challenge) = msgReg2 in
+	event Client_Init_Reg(uHandle,rpid);
+	let ClientData = CD_Cons(challenge,rpid,tbinding) in
+	let CHash = hash(ClientData) in
+	if c_type = noCTAP then
+	(
+		out(CA,Reg31(uHandle,rpid,CHash));
+		in(CA,msgReg4:msg);
+		let Reg4(RHash,cntr,aaguid,creid,pkau,s,pkat) = msgReg4 in
+		out(CR,Reg5(RHash,cntr,aaguid,creid,pkau,s,pkat,ClientData))
+	)
+	else
+	(
+		get Client_Token(PinToken) in
+		let PinAuth = HMAC2(PinToken,CHash) in
+		out(CA,Reg3(uHandle,rpid,CHash,PinAuth));
+		in(CA,msgReg4:msg);
+		let Reg4(RHash,cntr,aaguid,creid,pkau,s,pkat) = msgReg4 in
+		out(CR,Reg5(RHash,cntr,aaguid,creid,pkau,s,pkat,ClientData))
+	)
+).
+
+(*********************************************************************)
+(*               FIDO2 Client Proces in Authentication               *)
+(*********************************************************************)
+let Auth_Client(uHandle:UserHandle,CR:channel,CA:channel,tr_type:TrType,c_type:CTAPType) =
+(
+	let tbinding = GetTLSBinding(CR) in
+	in(CR,msgAuth1:msg);
+	if tr_type = empty then
+    (
+		let Auth1(rpid,challenge,creid) = msgAuth1 in
+		event Client_Init_Auth(uHandle,rpid);
+		let ClientData = CD_Cons(challenge,rpid,tbinding) in
+		let CHash = hash(ClientData) in
+		if c_type = noCTAP then
+		(
+			out(CA,Auth21(creid,rpid,CHash));
+			in(CA,msgAuth3:msg);
+			let Auth3(RHash,cntr,aaguid,xcreid,pkau,s,uhandle) = msgAuth3 in
+			out(CR,Auth4(RHash,cntr,aaguid,xcreid,pkau,s,uhandle,ClientData))
+		)
+		else
+		(
+			get Client_Token(PinToken) in
+			let PinAuth = HMAC2(PinToken,CHash) in
+			out(CA,Auth2(creid,rpid,CHash,PinAuth));
+			in(CA,msgAuth3:msg);
+			let Auth3(RHash,cntr,aaguid,xcreid,pkau,s,uhandle) = msgAuth3 in
+			out(CR,Auth4(RHash,cntr,aaguid,xcreid,pkau,s,uhandle,ClientData))
+		)
+	)
+	else if tr_type = simple then
+    (
+		let Trs1(rpid,challenge,creid,xTr) = msgAuth1 in
+		event Client_Init_Auth(uHandle,rpid);
+		event Client_Init_Tr(xTr);
+		let ClientData = CD_Cons(challenge,rpid,tbinding) in
+		let CHash = hash(ClientData) in
+		if c_type = noCTAP then
+		(
+			out(CA,Trs21(creid,rpid,CHash,xTr));
+			in(CA,msgTrs3:msg);
+			let Trs3(RHash,cntr,aaguid,xcreid,pkau,s,uhandle,Tr) = msgTrs3 in
+			out(CR,Trs4(RHash,cntr,aaguid,xcreid,pkau,s,uhandle,ClientData,Tr))
+		)
+		else
+		(
+			get Client_Token(PinToken) in
+			let PinAuth = HMAC2(PinToken,CHash) in
+			out(CA,Trs2(creid,rpid,CHash,PinAuth,xTr));
+			in(CA,msgAuth3:msg);
+			let Auth3(RHash,cntr,aaguid,xcreid,pkau,s,uhandle) = msgAuth3 in
+			out(CR,Auth4(RHash,cntr,aaguid,xcreid,pkau,s,uhandle,ClientData))
+		)
+	)
+	else
+	(
+		let Trg1(rpid,challenge,creid,xTr) = msgAuth1 in
+		event Client_Init_Auth(uHandle,rpid);
+		event Client_Init_Tr(xTr);
+		let ClientData = CD_Cons(challenge,rpid,tbinding) in
+		let CHash = hash(ClientData) in
+		if c_type = noCTAP then
+		(
+			out(CA,Trg21(creid,rpid,CHash,xTr));
+			in(CA,msgTrg3:msg);
+			let Trg3(RHash,cntr,aaguid,xcreid,pkau,s,uhandle,thash) = msgTrg3 in
+			out(CR,Trg4(RHash,cntr,aaguid,xcreid,pkau,s,uhandle,ClientData,thash))
+		)
+		else
+		(
+			get Client_Token(PinToken) in
+			let PinAuth = HMAC2(PinToken,CHash) in
+			out(CA,Trg2(creid,rpid,CHash,PinAuth,xTr));
+			in(CA,msgTrg3:msg);
+			let Trg3(RHash,cntr,aaguid,xcreid,pkau,s,uhandle,thash) = msgTrg3 in
+			out(CR,Trg4(RHash,cntr,aaguid,xcreid,pkau,s,uhandle,ClientData,thash))
+		)
+	)
+).
+
+
+(*********************************************************************)
+(*           FIDO2 Authenticatior Proces in Registration             *)
+(*********************************************************************)
+let Reg_Authnr(aaguid:AAGUID,skat:sskey,pkat:spkey,wk:key,CA:channel,au_type:AuType,c_type:CTAPType) =
+(
+	new cntr:CNTR;
+	new skau:sskey;
+	let pkau = spk(skau) in
+	let testcntr = cntr in
+	in(CA,msgReg3:msg);
+	if au_type = client then
+	(
+		if c_type = noCTAP then
+		(
+			let Reg31(uHandle,rpid,CHash) = msgReg3 in
+			new creid:bitstring;     (*Generate credential identifier*)
+			let testcreid = creid in
+			let RHash = hash_r(rpid) in
+			insert Authnr_Client_Record(testcreid,skau,rpid,uHandle,cntr);
+			let s = sign((RHash,cntr,aaguid,testcreid,pkau,CHash),skat) in
+			event Authnr_Finish_Reg(uHandle,rpid,aaguid,testcreid,pkau);
+			out(CA,Reg4(RHash,cntr,aaguid,testcreid,pkau,s,pkat))
+		)
+		else
+		(
+			get Authnr_Token(PinToken) in
+			let Reg3(uHandle,rpid,CHash,PinAuth) = msgReg3 in
+			let xPinAuth = HMAC2(PinToken,CHash) in
+			if PinAuth = xPinAuth then
+			(
+				new creid:bitstring;     (*Generate credential identifier*)
+				let testcreid = creid in
+				let RHash = hash_r(rpid) in
+				insert Authnr_Client_Record(testcreid,skau,rpid,uHandle,cntr);
+				let s = sign((RHash,cntr,aaguid,testcreid,pkau,CHash),skat) in
+				event Authnr_Finish_Reg(uHandle,rpid,aaguid,testcreid,pkau);
+				out(CA,Reg4(RHash,cntr,aaguid,testcreid,pkau,s,pkat))
+			)
+		)
+	) (* if au_type *)
+	else
+	(
+		if c_type = noCTAP then
+		(
+			let Reg31(uHandle,rpid,CHash) = msgReg3 in
+			let RHash = hash_r(rpid) in
+			let creid = senc((skau,rpid,uHandle),wk) in
+			let testcreid = creid in
+			insert Authnr_Server_Record(uHandle,rpid,cntr);
+			let s = sign((RHash,cntr,aaguid,testcreid,pkau,CHash),skat) in
+			event Authnr_Finish_Reg(uHandle,rpid,aaguid,testcreid,pkau);
+			out(CA,Reg4(RHash,cntr,aaguid,testcreid,pkau,s,pkat))
+		)
+		else
+		(
+			get Authnr_Token(PinToken) in
+			let Reg3(uHandle,rpid,CHash,PinAuth) = msgReg3 in
+			let xPinAuth = HMAC2(PinToken,CHash) in
+			if PinAuth = xPinAuth then
+			(
+				let RHash = hash_r(rpid) in
+				let creid = senc((skau,rpid,uHandle),wk) in
+				let testcreid = creid in
+				insert Authnr_Server_Record(uHandle,rpid,cntr);
+				let s = sign((RHash,cntr,aaguid,testcreid,pkau,CHash),skat) in
+				event Authnr_Finish_Reg(uHandle,rpid,aaguid,testcreid,pkau);
+				out(CA,Reg4(RHash,cntr,aaguid,testcreid,pkau,s,pkat))
+			)
+		)	
+	)
+).
+
+(*********************************************************************)
+(*           FIDO2 Authenticatior Proces in Authentication           *)
+(*********************************************************************)
+let Auth_Authnr(aaguid:AAGUID,wk:key,CA:channel,tr_type:TrType,au_type:AuType,c_type:CTAPType) =
+(
+	in(CA,msgAuth2:msg);
+	if au_type = server && tr_type = empty then
+	(
+		if c_type = noCTAP then
+		(
+			let Auth21(creid,rpid,CHash) = msgAuth2 in
+			let (skau:sskey,xrpid:RpID,uHandle:UserHandle) = sdec(creid,wk) in (*Unwrap the CreID*)
+			get Authnr_Server_Record(=uHandle,=rpid,xcntr) in
+			let RHash = hash_r(xrpid) in
+			let cntr = Incr(xcntr) in
+			let testcntr = cntr in
+			let pkau = spk(skau) in
+			let s = sign((RHash,cntr,aaguid,creid,pkau,CHash),skau) in   
+			event Authnr_Finish_Auth(uHandle,xrpid,aaguid,creid);
+			out(CA,Auth3(RHash,cntr,aaguid,creid,pkau,s,uHandle))
+		)
+		else
+		(
+			get Authnr_Token(PinToken) in
+			let Auth2(creid,rpid,CHash,PinAuth) = msgAuth2 in
+			let xPinAuth = HMAC2(PinToken,CHash) in
+			if PinAuth = xPinAuth then
+			(
+				let (skau:sskey,xrpid:RpID,uHandle:UserHandle) = sdec(creid,wk) in (*Unwrap the CreID*)
+				get Authnr_Server_Record(=uHandle,=rpid,xcntr) in
+				let RHash = hash_r(xrpid) in
+				let cntr = Incr(xcntr) in
+				let testcntr = cntr in
+				let pkau = spk(skau) in
+				let s = sign((RHash,cntr,aaguid,creid,pkau,CHash),skau) in   
+				event Authnr_Finish_Auth(uHandle,xrpid,aaguid,creid);
+				out(CA,Auth3(RHash,cntr,aaguid,creid,pkau,s,uHandle))
+			)
+		)
+	)(* case 1: server-side authnr + pure authentication*)
+	else if au_type = server && tr_type = simple then
+	(
+		if c_type = noCTAP then
+		(
+			let Trs21(creid,rpid,CHash,Tr) = msgAuth2 in
+			let (skau:sskey,xrpid:RpID,uHandle:UserHandle) = sdec(creid,wk) in (*Unwrap the CreID*)
+			get Authnr_Server_Record(=uHandle,=rpid,xcntr) in
+			let RHash = hash_r(xrpid) in
+			let cntr = Incr(xcntr) in
+			let testcntr = cntr in
+			let pkau = spk(skau) in
+			let s = sign((RHash,cntr,aaguid,creid,pkau,CHash,Tr),skau) in
+			event Authnr_Finish_Auth(uHandle,xrpid,aaguid,creid);
+			event Authnr_Finish_Tr(Tr);
+			out(CA,Trs3(RHash,cntr,aaguid,creid,pkau,s,uHandle,Tr))
+		)
+		else
+		(
+			get Authnr_Token(PinToken) in
+			let Trs2(creid,rpid,CHash,PinAuth,Tr) = msgAuth2 in
+			let xPinAuth = HMAC2(PinToken,CHash) in
+			if PinAuth = xPinAuth then
+			(
+				let (skau:sskey,xrpid:RpID,uHandle:UserHandle) = sdec(creid,wk) in (*Unwrap the CreID*)
+				get Authnr_Server_Record(=uHandle,=rpid,xcntr) in
+				let RHash = hash_r(xrpid) in
+				let cntr = Incr(xcntr) in
+				let testcntr = cntr in
+				let pkau = spk(skau) in
+				let s = sign((RHash,cntr,aaguid,creid,pkau,CHash,Tr),skau) in
+				event Authnr_Finish_Auth(uHandle,xrpid,aaguid,creid);
+				event Authnr_Finish_Tr(Tr);
+				out(CA,Trs3(RHash,cntr,aaguid,creid,pkau,s,uHandle,Tr))
+			)
+		)
+	)(* case 2: server-side authnr + simple authentication*)
+	else if au_type = server && tr_type = generic then
+	(
+		if c_type = noCTAP then
+		(
+			let Trg21(creid,rpid,CHash,Tr) = msgAuth2 in
+			let (skau:sskey,xrpid:RpID,uHandle:UserHandle) = sdec(creid,wk) in (*Unwrap the CreID*)
+			get Authnr_Server_Record(=uHandle,=rpid,xcntr) in
+			let RHash = hash_r(xrpid) in
+			let cntr = Incr(xcntr) in
+			let testcntr = cntr in
+			let THash = hash_t(Tr) in
+			let pkau = spk(skau) in
+			let s = sign((RHash,cntr,aaguid,creid,pkau,CHash,THash),skau) in 
+			event Authnr_Finish_Auth(uHandle,xrpid,aaguid,creid);
+			event Authnr_Finish_Tr(Tr);
+			out(CA,Trg3(RHash,cntr,aaguid,creid,pkau,s,uHandle,THash))
+		)
+		else
+		(
+			get Authnr_Token(PinToken) in
+			let Trg2(creid,rpid,CHash,PinAuth,Tr) = msgAuth2 in
+			let xPinAuth = HMAC2(PinToken,CHash) in
+			if PinAuth = xPinAuth then
+			(
+				let (skau:sskey,xrpid:RpID,uHandle:UserHandle) = sdec(creid,wk) in (*Unwrap the CreID*)
+				get Authnr_Server_Record(=uHandle,=rpid,xcntr) in
+				let RHash = hash_r(xrpid) in
+				let cntr = Incr(xcntr) in
+				let testcntr = cntr in
+				let THash = hash_t(Tr) in
+				let pkau = spk(skau) in
+				let s = sign((RHash,cntr,aaguid,creid,pkau,CHash,THash),skau) in 
+				event Authnr_Finish_Auth(uHandle,xrpid,aaguid,creid);
+				event Authnr_Finish_Tr(Tr);
+				out(CA,Trg3(RHash,cntr,aaguid,creid,pkau,s,uHandle,THash))
+			)	
+		)	
+	)(* case 3: server-side authnr + generic authentication*)
+	else if au_type = client && tr_type = empty then
+	(
+		if c_type = noCTAP then
+		(
+			let Auth21(creid,rpid,CHash) = msgAuth2 in
+			get Authnr_Client_Record(=creid,skau,xrpid,uHandle,xcntr) in
+			let RHash = hash_r(xrpid) in
+			let cntr = Incr(xcntr) in
+			let testcntr = cntr in
+			let pkau = spk(skau) in
+			let s = sign((RHash,cntr,aaguid,creid,pkau,CHash),skau) in          
+			event Authnr_Finish_Auth(uHandle,xrpid,aaguid,creid);
+			out(CA,Auth3(RHash,cntr,aaguid,creid,pkau,s,uHandle))
+		)
+		else
+		(
+			get Authnr_Token(PinToken) in
+			let Auth2(creid,rpid,CHash,PinAuth) = msgAuth2 in
+			let xPinAuth = HMAC2(PinToken,CHash) in
+			if PinAuth = xPinAuth then
+			(
+				get Authnr_Client_Record(=creid,skau,xrpid,uHandle,xcntr) in
+				let RHash = hash_r(xrpid) in
+				let cntr = Incr(xcntr) in
+				let testcntr = cntr in
+				let pkau = spk(skau) in
+				let s = sign((RHash,cntr,aaguid,creid,pkau,CHash),skau) in          
+				event Authnr_Finish_Auth(uHandle,xrpid,aaguid,creid);
+				out(CA,Auth3(RHash,cntr,aaguid,creid,pkau,s,uHandle))
+			)
+		)
+	)(* case 4: client-side authnr + pure authentication*)
+	else if au_type = client && tr_type = simple then
+	(
+		if c_type = noCTAP then
+		(
+			let Trs21(creid,rpid,CHash,Tr) = msgAuth2 in
+			get Authnr_Client_Record(=creid,skau,xrpid,uHandle,xcntr) in
+			let RHash = hash_r(xrpid) in
+			let cntr = Incr(xcntr) in
+			let testcntr = cntr in
+			let pkau = spk(skau) in
+			let s = sign((RHash,cntr,aaguid,creid,pkau,CHash,Tr),skau) in                                      
+			event Authnr_Finish_Auth(uHandle,xrpid,aaguid,creid);
+			event Authnr_Finish_Tr(Tr);
+			out(CA,Trs3(RHash,cntr,aaguid,creid,pkau,s,uHandle,Tr))
+		)
+		else
+		(
+			get Authnr_Token(PinToken) in
+			let Trs2(creid,rpid,CHash,PinAuth,Tr) = msgAuth2 in
+			let xPinAuth = HMAC2(PinToken,CHash) in
+			if PinAuth = xPinAuth then
+			(
+				get Authnr_Client_Record(=creid,skau,xrpid,uHandle,xcntr) in
+				let RHash = hash_r(xrpid) in
+				let cntr = Incr(xcntr) in
+				let testcntr = cntr in
+				let pkau = spk(skau) in
+				let s = sign((RHash,cntr,aaguid,creid,pkau,CHash,Tr),skau) in                                      
+				event Authnr_Finish_Auth(uHandle,xrpid,aaguid,creid);
+				event Authnr_Finish_Tr(Tr);
+				out(CA,Trs3(RHash,cntr,aaguid,creid,pkau,s,uHandle,Tr))
+			)
+		)
+	)(* case 5: client-side authnr + simple authentication*)
+	else
+	(
+		if c_type = noCTAP then
+		(
+			let Trg21(creid,rpid,CHash,Tr) = msgAuth2 in
+			get Authnr_Client_Record(=creid,skau,xrpid,uHandle,xcntr) in
+			let RHash = hash_r(xrpid) in
+			let cntr = Incr(xcntr) in
+			let testcntr = cntr in
+			let THash = hash_t(Tr) in
+			let pkau = spk(skau) in
+			let s = sign((RHash,cntr,aaguid,creid,pkau,CHash,THash),skau) in   
+			event Authnr_Finish_Auth(uHandle,xrpid,aaguid,creid);
+			event Authnr_Finish_Tr(Tr);
+			out(CA,Trg3(RHash,cntr,aaguid,creid,pkau,s,uHandle,THash))
+		)
+		else
+		(
+			get Authnr_Token(PinToken) in
+			let Trg2(creid,rpid,CHash,PinAuth,Tr) = msgAuth2 in
+			let xPinAuth = HMAC2(PinToken,CHash) in
+			if PinAuth = xPinAuth then
+			(
+				get Authnr_Client_Record(=creid,skau,xrpid,uHandle,xcntr) in
+				let RHash = hash_r(xrpid) in
+				let cntr = Incr(xcntr) in
+				let testcntr = cntr in
+				let THash = hash_t(Tr) in
+				let pkau = spk(skau) in
+				let s = sign((RHash,cntr,aaguid,creid,pkau,CHash,THash),skau) in   
+				event Authnr_Finish_Auth(uHandle,xrpid,aaguid,creid);
+				event Authnr_Finish_Tr(Tr);
+				out(CA,Trg3(RHash,cntr,aaguid,creid,pkau,s,uHandle,THash))
+			)
+		)
+	)(* case 6: client-side authnr + generic authentication*)
+).
+
+letfun get_creid(au_type:AuType,uHandle:UserHandle,rpid:RpID,wk:key,skau:sskey) =
+(
+	new creid:bitstring;
+	if au_type = client then creid	
+	else senc((skau,rpid,uHandle),wk)		
+).

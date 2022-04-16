@@ -1,0 +1,122 @@
+query u:UserHandle, r:RpID, a:AAGUID, c:bitstring;
+inj-event(Server_Finish_Auth(u,r,a,c)) ==> inj-event(Authnr_Finish_Auth(u,r,a,c)).
+
+process
+( 
+	(* Setup *)
+    new G:Gen;                (* Pre-generated parameters of KeyAgreement *)
+
+	(* User A, RP*)
+	new uHandle_A0:UserHandle;   (* User Info *)
+	new pWord_A0:PassWord;
+	new aaguid_A:AAGUID;        (* Authenticatior Info *)
+	new wk_A:key;               (* Wrapping Key in Registration Phase *)
+	new skat_A:sskey;           (* Attestation Key Pair *)
+	new skau_A0:sskey;
+	new cntr_A0:CNTR;
+	new PinToken_A0:bitstring;
+	new PIN_A0:bitstring;
+
+	(* User A, RP'*)
+	new uHandle_A1:UserHandle;   (* User Info *)
+	new pWord_A1:PassWord;
+	new skau_A1:sskey;
+	new cntr_A1:CNTR;
+	new PinToken_A1:bitstring;
+	new PIN_A1:bitstring;
+
+	(* User B, RP0 *)
+	new uHandle_B:UserHandle;   (* User Info *)
+	new pWord_B:PassWord;
+	new aaguid_B:AAGUID;        (* Authenticatior Info *)
+	new wk_B:key;               (* Wrapping Key in Registration Phase *)
+	new skat_B:sskey;           (* Attestation Key Pair *)
+	new skau_B:sskey;
+	new cntr_B:CNTR;
+	new PinToken_B:bitstring;
+	new PIN_B:bitstring;
+
+	(* Relying Party RP *)
+	new rpid_0:RpID;	          (* Relying Party info *)
+	new Tr_0:Transaction;
+	(* Relying Party RP' *)
+	new rpid_1:RpID;	          (* Relying Party info *)
+	new Tr_1:Transaction;
+
+	
+	
+    let pkat_A = spk(skat_A) in
+	let pkau_A0 = spk(skau_A0) in
+	let pkau_A1 = spk(skau_A1) in
+	let pkat_B = spk(skat_B) in
+	let pkau_B = spk(skau_B) in
+	(* set CTAPType *)
+    let ctap_type = getToken in
+	let au_type = client in
+	(* let au_type = server in *)
+	let tr_type = empty in
+	(* let tr_type = simple in *)
+	(* let tr_type = generic in *)
+
+
+	let testcreid_A0 = get_creid(au_type,uHandle_A0,rpid_0,wk_A,skau_A0) in
+	let creid_A0 = testcreid_A0 in
+	let testcreid_A1 = get_creid(au_type,uHandle_A1,rpid_1,wk_A,skau_A1) in
+	let creid_A1 = testcreid_A1 in
+	let testcreid_B = get_creid(au_type,uHandle_B,rpid_0,wk_B,skau_B) in
+	let creid_B = testcreid_B in
+
+	insert Authnr_Client_Record(creid_A0,skau_A0,rpid_0,uHandle_A0,cntr_A0);
+	insert Authnr_Server_Record(uHandle_A0,rpid_0,cntr_A0);
+	insert Server_Reg_Record(uHandle_A0,aaguid_A,creid_A0,pkau_A0,cntr_A0);
+
+	insert Authnr_Client_Record(creid_A1,skau_A1,rpid_1,uHandle_A1,cntr_A1);
+	insert Authnr_Server_Record(uHandle_A1,rpid_1,cntr_A1);
+	insert Server_Reg_Record(uHandle_A1,aaguid_A,creid_A1,pkau_A1,cntr_A1);
+
+	insert Authnr_Client_Record(creid_B,skau_B,rpid_0,uHandle_B,cntr_B);
+	insert Authnr_Server_Record(uHandle_B,rpid_0,cntr_B);
+	insert Server_Reg_Record(uHandle_A1,aaguid_B,creid_B,pkau_B,cntr_B);
+
+	(* Records of leaked information*)
+	(*insert Malicious_Server_Reg_Record(uHandle_A1,aaguid_A,creid_A1,pkau_A1,cntr_A1);
+	insert Malicious_Authnr_Server_Record(uHandle_B,rpid_0,cntr_B);
+	insert Malicious_Authnr_Client_Record(creid_B,skau_B,rpid_0,uHandle_B,cntr_B);*)
+	out(cP,(uHandle_A1,aaguid_A,creid_A1,pkau_A1,cntr_A1));
+	out(cP,(uHandle_B,rpid_0,cntr_B));
+	out(cP,(creid_B,skau_B,rpid_0,uHandle_B,cntr_B));
+
+
+    (* some fields initial public *)
+	out(cP,(G,aaguid_A,rpid_0,uHandle_A0,pkat_A,pkau_A0));
+	out(cP,(G,aaguid_A,rpid_1,uHandle_A1,pkat_A,pkau_A1));
+	out(cP,(G,aaguid_B,rpid_0,uHandle_B,pkat_B,pkau_B));
+
+	(* leaked fields *)
+
+
+	!(CTAP_Authnr(G, PIN_A0, PinToken_A0, CA, ctap_type))|
+	!(CTAP_Client(G, PIN_A0, CA, ctap_type))|
+
+	!(CTAP_Authnr(G, PIN_A1, PinToken_A1, CA, ctap_type))|
+	!(CTAP_Client(G, PIN_A1, CA, ctap_type))|
+
+	!(CTAP_Authnr(G, PIN_B, PinToken_B, CA, ctap_type))|
+	!(CTAP_Client(G, PIN_B, CA, ctap_type))|
+
+	phase 1;
+    (* malicious entities in Authentication *)
+
+
+	!(Auth_Authnr(PinToken_A0,aaguid_A,wk_A,CA,tr_type, au_type))|
+	!(Auth_Client(uHandle_A0,CR,CA,tr_type))|
+	!(Auth_Server(rpid_0,uHandle_A0,Tr_0,CR,tr_type))|
+
+	!(Auth_Authnr(PinToken_A1,aaguid_A,wk_A,CA,tr_type, au_type))|
+	!(Auth_Client(uHandle_A1,CR,CA,tr_type))|
+	!(Auth_Server(rpid_1,uHandle_A1,Tr_1,CR,tr_type))|
+
+	!(Auth_Authnr(PinToken_B,aaguid_B,wk_B,CA,tr_type, au_type))|
+	!(Auth_Client(uHandle_B,CR,CA,tr_type))|
+	!(Auth_Server(rpid_0,uHandle_B,Tr_0,CR,tr_type))
+)

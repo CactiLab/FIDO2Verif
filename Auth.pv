@@ -1,0 +1,65 @@
+let system(G:Gen,skat:sskey,skau:sskey,aaguid:AAGUID,rpid:RpID,uHandle:UserHandle,authcntr:CNTR,wk:key)=
+(
+	new Tr:Transaction;
+	new PinToken:bitstring;
+	new PIN:bitstring;
+    let pkat = spk(skat) in
+	let pkau = spk(skau) in
+	(* set CTAPType *)
+    (*let ctap_type = setPIN in
+	let au_type = client in
+	let tr_type = simple in*)
+
+	let testcreid = get_creid(au_type,uHandle,rpid,wk,skau) in
+	let creid = testcreid in
+	insert Authnr_Client_Record(creid,skau,rpid,uHandle,authcntr);
+	insert Authnr_Server_Record(uHandle,rpid,authcntr);
+	insert Server_Reg_Record(uHandle,aaguid,creid,pkau,authcntr);
+
+    (* some fields initial public *)
+	out(cP,(G,aaguid,rpid,uHandle,pkat,pkau));
+
+	(* leaked fields *)
+
+
+	if ctap_type = noCTAP then
+	(
+		(* malicious entities in noCTAP Authentication *)
+
+
+		Auth_Authnr(aaguid,wk,CA,tr_type, au_type,ctap_type)|
+		Auth_Client(uHandle,CR,CA,tr_type,ctap_type)|
+		Auth_Server(rpid,uHandle,Tr,CR,tr_type)
+	)
+	else
+	(
+		(* malicious entities in CTAP Process *)
+
+
+		CTAP_Authnr(G, PIN, CA, ctap_type)|
+		CTAP_Client(G, PIN, CA, ctap_type)|
+
+		phase 1;
+		(* malicious entities in CTAP Authentication *)
+
+
+		Auth_Authnr(aaguid,wk,CA,tr_type, au_type,ctap_type)|
+		Auth_Client(uHandle,CR,CA,tr_type,ctap_type)|
+		Auth_Server(rpid,uHandle,Tr,CR,tr_type)
+	)
+).
+
+process
+( 
+	(* Setup *)
+    new G:Gen;                (* Pre-generated parameters of KeyAgreement *)
+	new uHandle:UserHandle;   (* User Info *)
+	new pWord:PassWord;
+	new aaguid:AAGUID;        (* Authenticatior Info *)
+	new rpid:RpID;	          (* Relying Party info *)
+	new wk:key;               (* Wrapping Key in Registration Phase *)
+	new skat:sskey;           (* Attestation Key Pair *)
+	new skau:sskey;
+	new cntr:CNTR;
+	!system(G,skat,skau,aaguid,rpid,uHandle,cntr,wk)
+)

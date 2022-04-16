@@ -1,0 +1,61 @@
+let system(G:Gen,skau:sskey,aaguid:AAGUID,rpid:RpID,uHandle:UserHandle,authcntr:CNTR,wk:key)=
+(
+	new Tr:Transaction;
+	new PinToken:bitstring;
+	new PIN:bitstring;
+	let pkau = spk(skau) in
+	(* set CTAPType *)
+    let ctap_type = getToken in
+	let au_type = client in
+	(* let au_type = server in *)
+	let tr_type = empty in
+	(* let tr_type = simple in *)
+	(* let tr_type = generic in *)
+
+	let testcreid = get_creid(au_type,uHandle,rpid,wk,skau) in
+	let creid = testcreid in
+	insert Authnr_Client_Record(creid,skau,rpid,uHandle,authcntr);
+	insert Authnr_Server_Record(uHandle,rpid,authcntr);
+	insert Server_Reg_Record(uHandle,aaguid,creid,pkau,authcntr);
+
+    (* some fields initial public *)
+	out(cP,(G,aaguid,rpid,uHandle,pkau));
+
+	(* leaked fields *)
+
+
+	(* entities *)
+    CTAP_Authnr(G, PIN, CA, ctap_type)|
+    CTAP_Client(G, PIN, CA, ctap_type)|
+
+    phase 1;
+    Auth_Authnr(aaguid,wk,CA,tr_type, au_type, ctap_type)|
+    Auth_Client(uHandle,CR,CA,tr_type, ctap_type)|
+    Auth_Server(rpid,uHandle,Tr,CR,tr_type)
+
+).
+
+process
+( 
+	(* Setup *)
+    new G:Gen;                (* Pre-generated parameters of KeyAgreement *)
+	new uHandle:UserHandle;   (* User Info *)
+	new aaguid:AAGUID;        (* Authenticatior Info *)
+	new rpid:RpID;	          (* Relying Party info *)
+	new wk:key;               (* Wrapping Key in Registration Phase *)
+	new skau:sskey;
+	new cntr:CNTR;
+    (* User 1 authenticates in RP 1 *)
+	!system(G,skau,aaguid,rpid,uHandle,cntr,wk)|
+    (* User 1 authenticates in RP 2 *)
+    !(
+        new uHandle1:UserHandle;   (* User Info *)
+	    new aaguid1:AAGUID;        (* Authenticatior Info *)
+	    new rpid1:RpID;	          (* Relying Party info *)
+	    new wk1:key;               (* Wrapping Key in Registration Phase *)
+	    new skau1:sskey;
+	    new cntr1:CNTR;
+        system(G,skau1,aaguid,rpid1,uHandle1,cntr1,choice[wk,wk1])
+    )
+
+)
