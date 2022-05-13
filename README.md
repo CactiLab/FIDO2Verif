@@ -11,7 +11,7 @@ If you want to cite our paper in your work, please use the following BibTeX entr
 }
 ```
 
-The project is still being updated, and the current version is tagged by ``version_1.0``
+The tag ``version_1.0`` corresponds to the ESORICS paper.
 
 ## Instructions
 
